@@ -17,6 +17,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
+
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -72,15 +74,24 @@ std::shared_ptr<Config> Config::parse(const std::string& filename,
     config.streamer_file_duration_ = 1;
   if (config.streamer_files_num_ < 4 || config.streamer_files_num_ > 16)
     config.streamer_files_num_ = 8;
-  if (config.streamer_player_buffer_files_num_ < 1 || config.streamer_player_buffer_files_num_ > 2)
+  if (config.streamer_player_buffer_files_num_ < 1 ||
+      config.streamer_player_buffer_files_num_ > 2)
     config.streamer_player_buffer_files_num_ = 1;
 
   boost::system::error_code ec;
+#if BOOST_VERSION < 108700
   ip::address_v4::from_string(config.rtp_mcast_base_.c_str(), ec);
+#else
+  ip::make_address(config.rtp_mcast_base_.c_str(), ec);
+#endif
   if (ec) {
     config.rtp_mcast_base_ = "239.1.0.1";
   }
+#if BOOST_VERSION < 108700
   ip::address_v4::from_string(config.sap_mcast_addr_.c_str(), ec);
+#else
+  ip::make_address(config.sap_mcast_addr_.c_str(), ec);
+#endif
   if (ec) {
     config.sap_mcast_addr_ = "224.2.127.254";
   }
@@ -104,7 +115,8 @@ std::shared_ptr<Config> Config::parse(const std::string& filename,
     config.interface_idx_ = interface_idx;
   }
 
-  auto [ip_addr, ip_str] = get_interface_ip(config.interface_name_);
+  auto [ip_addr, ip_str, is_new] =
+      get_new_interface_ip(config.interface_name_, config.ip_str_);
   if (ip_str.empty()) {
     std::cerr << "Cannot retrieve IPv4 address for interface "
               << config.interface_name_ << std::endl;
@@ -168,4 +180,18 @@ std::string Config::get_node_id() const {
   } else {
     return custom_node_id_;
   }
+}
+
+bool Config::get_streamer_enabled() const {
+#ifndef _USE_STREAMER_
+  return false;
+#endif
+  return streamer_enabled_;
+}
+
+bool Config::get_mdns_enabled() const {
+#ifndef _USE_AVAHI_
+  return false;
+#endif
+  return mdns_enabled_;
 }

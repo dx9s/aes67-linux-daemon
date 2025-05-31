@@ -186,6 +186,7 @@ Example
 
     {
       "interface_name": "lo",
+      "http_addr": "127.0.0.1",
       "http_port": 8080,
       "rtsp_port": 8854,
       "log_severity": 2,
@@ -260,7 +261,7 @@ where:
 
 > **sample\_rate**
 > JSON number specifying the default sample rate.
-> Valid values are 44100Hz, 48000Hz, 96000Hz, 192000Hz and 384000Hz.
+> Valid values are 44100Hz, 48000Hz, 88200Hz, 96000Hz, 192000Hz and 384000Hz.
 
 > **playout\_delay**
 > JSON number specifying the default safety playout delay at 1FS in samples.
@@ -285,7 +286,12 @@ where:
 
 > **ip\_addr**
 > JSON string specifying the IP address of the specified network device.
-> **_NOTE:_** This parameter is read-only and cannot be set. The server will determine the IP address of the network device at startup time and will monitor it periodically.
+> This parameter can be set to specify the prefferred IP address to use. 
+> In case such address is not valid, the server will determine the IP address of the network device at startup time and will monitor it periodically.
+
+> **http\_addr**
+> JSON string specifying the alternate IP address used for the daemon HTTP interface. 
+> If this address is specified the HTTP interface will bind to this IP instead of the one specified by the *ip_addr* parameter.
 
 > **mdns\_enabled**
 > JSON boolean specifying whether the mDNS discovery is enabled or disabled.

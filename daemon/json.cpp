@@ -17,6 +17,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
+
 #include <boost/foreach.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -290,13 +292,15 @@ std::string remote_sources_to_json(const std::list<RemoteSource>& sources) {
   return ss.str();
 }
 
+#ifdef _USE_STREAMER_
 std::string streamer_info_to_json(const StreamerInfo& info) {
   std::stringstream ss;
   ss << "{"
      << "\n   \"status\": " << unsigned(info.status)
      << ",\n   \"file_duration\": " << unsigned(info.file_duration)
      << ",\n   \"files_num\": " << unsigned(info.files_num)
-     << ",\n   \"player_buffer_files_num\": " << unsigned(info.player_buffer_files_num)
+     << ",\n   \"player_buffer_files_num\": "
+     << unsigned(info.player_buffer_files_num)
      << ",\n   \"start_file_id\": " << unsigned(info.start_file_id)
      << ",\n   \"current_file_id\": " << unsigned(info.current_file_id)
      << ",\n   \"channels\": " << unsigned(info.channels)
@@ -304,6 +308,7 @@ std::string streamer_info_to_json(const StreamerInfo& info) {
      << ",\n   \"rate\": " << unsigned(info.rate) << "\n}\n";
   return ss.str();
 }
+#endif
 
 Config json_to_config_(std::istream& js, Config& config) {
   try {
@@ -374,7 +379,9 @@ Config json_to_config_(std::istream& js, Config& config) {
             remove_undesired_chars(val.get_value<std::string>()));
       } else if (key == "auto_sinks_update") {
         config.set_auto_sinks_update(val.get_value<bool>());
-      } else if (key == "mac_addr" || key == "ip_addr" || key == "node_id") {
+      } else if (key == "ip_addr") {
+        config.set_ip_addr_str(val.get_value<std::string>());
+      } else if (key == "mac_addr" || key == "node_id") {
         /* ignored */
       } else {
         std::cerr << "Warning: unkown configuration option " << key

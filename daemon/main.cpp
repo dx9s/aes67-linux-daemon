@@ -1,7 +1,7 @@
 //
 //  main.cpp
 //
-//  Copyright (c) 2019 2020 Andrea Bondavalli. All rights reserved.
+//  Copyright (c) 2019 2025 Andrea Bondavalli. All rights reserved.
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -30,7 +30,10 @@
 #include "mdns_server.hpp"
 #include "rtsp_server.hpp"
 #include "session_manager.hpp"
+
+#ifdef _USE_STREAMER_
 #include "streamer.hpp"
+#endif
 
 #ifdef _USE_SYSTEMD_
 #include <systemd/sd-daemon.h>
@@ -40,7 +43,7 @@ namespace po = boost::program_options;
 namespace postyle = boost::program_options::command_line_style;
 namespace logging = boost::log;
 
-static const std::string version("bondagit-2.0.0");
+static const std::string version("bondagit-2.1.0");
 static std::atomic<bool> terminate = false;
 
 void termination_handler(int signum) {
@@ -181,6 +184,7 @@ int main(int argc, char* argv[]) {
       }
 
       /* start streamer */
+#ifdef _USE_STREAMER_
       auto streamer = Streamer::create(session_manager, config);
       if (config->get_streamer_enabled() &&
           (streamer == nullptr || !streamer->init())) {
@@ -189,6 +193,9 @@ int main(int argc, char* argv[]) {
 
       /* start http server */
       HttpServer http_server(session_manager, browser, streamer, config);
+#else
+      HttpServer http_server(session_manager, browser, config);
+#endif
       if (!http_server.init()) {
         throw std::runtime_error(std::string("HttpServer:: init failed"));
       }
@@ -213,8 +220,9 @@ int main(int argc, char* argv[]) {
           sd_notify(0, "WATCHDOG=1");
 #endif
 
-        auto [ip_addr, ip_str] = get_interface_ip(config->get_interface_name());
-        if (config->get_ip_addr_str() != ip_str) {
+        auto [ip_addr, ip_str, is_new] = get_new_interface_ip(
+            config->get_interface_name(), config->get_ip_addr_str());
+        if (is_new) {
           BOOST_LOG_TRIVIAL(warning)
               << "main:: IP address changed, restarting ...";
           break;
@@ -247,11 +255,13 @@ int main(int argc, char* argv[]) {
       }
 
       /* stop streamer */
+#ifdef _USE_STREAMER_
       if (config->get_streamer_enabled()) {
         if (!streamer->terminate()) {
           throw std::runtime_error(std::string("Streamer:: terminate failed"));
         }
       }
+#endif
 
       /* stop rtsp server */
       if (!rtsp_server.terminate()) {

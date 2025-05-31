@@ -17,9 +17,21 @@
 //
 
 #define CPPHTTPLIB_PAYLOAD_MAX_LENGTH 4096  // max for SDP file
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
+
 #include <httplib.h>
 #include <boost/foreach.hpp>
 #include <boost/asio.hpp>
+#if BOOST_VERSION < 108800
+#include <boost/process.hpp>
+namespace process = boost::process;
+#else
+#include <boost/process/v1/child.hpp>
+#include <boost/process/v1/io.hpp>
+#include <boost/process/v1/pipe.hpp>
+#include <boost/process/v1/start_dir.hpp>
+namespace process = boost::process::v1;
+#endif
 #include <boost/process.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -43,7 +55,7 @@ constexpr static uint16_t g_udp_size = 1024;
 constexpr static uint16_t g_sap_header_len = 24;
 constexpr static uint16_t g_stream_num_max = 64;
 
-using namespace boost::process;
+using namespace process;
 using namespace boost::asio::ip;
 using namespace boost::asio;
 
@@ -95,9 +107,14 @@ struct Client {
     socket_.set_option(udp::socket::reuse_address(true));
     socket_.bind(listen_endpoint_);
     socket_.set_option(
+#if BOOST_VERSION < 108700
         multicast::join_group(address::from_string(g_sap_address).to_v4(),
-                              address::from_string(g_daemon_address).to_v4()));
-
+                              address::from_string(g_daemon_address).to_v4())
+#else
+        multicast::join_group(make_address(g_sap_address).to_v4(),
+                              make_address(g_daemon_address).to_v4())
+#endif
+    );
     cli_.set_connection_timeout(30);
     cli_.set_read_timeout(30);
     cli_.set_write_timeout(30);
@@ -360,10 +377,18 @@ struct Client {
 
  private:
   httplib::Client cli_{g_daemon_address, g_daemon_port};
+#if BOOST_VERSION < 108700
   io_service io_service_;
+#else
+  io_context io_service_;
+#endif
   udp::socket socket_{io_service_};
   udp::endpoint listen_endpoint_{
+#if BOOST_VERSION < 108700
       udp::endpoint(address::from_string("0.0.0.0"), g_sap_port)};
+#else
+      udp::endpoint(make_address("0.0.0.0"), g_sap_port)};
+#endif
 };
 
 BOOST_AUTO_TEST_CASE(is_alive) {
@@ -404,7 +429,8 @@ BOOST_AUTO_TEST_CASE(get_config) {
   auto streamer_channels = pt.get<int>("streamer_channels");
   auto streamer_files_num = pt.get<int>("streamer_files_num");
   auto streamer_file_duration = pt.get<int>("streamer_file_duration");
-  auto streamer_player_buffer_files_num = pt.get<int>("streamer_player_buffer_files_num");
+  auto streamer_player_buffer_files_num =
+      pt.get<int>("streamer_player_buffer_files_num");
   BOOST_CHECK_MESSAGE(http_port == 9999, "config as excepcted");
   // BOOST_CHECK_MESSAGE(log_severity == 5, "config as excepcted");
   BOOST_CHECK_MESSAGE(playout_delay == 0, "config as excepcted");
@@ -427,12 +453,17 @@ BOOST_AUTO_TEST_CASE(get_config) {
   BOOST_CHECK_MESSAGE(node_id == "test node", "config as excepcted");
   BOOST_CHECK_MESSAGE(custom_node_id == "test node", "config as excepcted");
   BOOST_CHECK_MESSAGE(auto_sinks_update == true, "config as excepcted");
+#ifdef _USE_AVAHI_
   BOOST_CHECK_MESSAGE(mdns_enabled == true, "config as excepcted");
+#else
+  BOOST_CHECK_MESSAGE(mdns_enabled == false, "config as excepcted");
+#endif
   BOOST_CHECK_MESSAGE(streamer_enabled == false, "config as excepcted");
   BOOST_CHECK_MESSAGE(streamer_channels == 8, "config as excepcted");
   BOOST_CHECK_MESSAGE(streamer_files_num == 6, "config as excepcted");
   BOOST_CHECK_MESSAGE(streamer_file_duration == 3, "config as excepcted");
-  BOOST_CHECK_MESSAGE(streamer_player_buffer_files_num == 2, "config as excepcted");
+  BOOST_CHECK_MESSAGE(streamer_player_buffer_files_num == 2,
+                      "config as excepcted");
 }
 
 BOOST_AUTO_TEST_CASE(get_ptp_status) {
